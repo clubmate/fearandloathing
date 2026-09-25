@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projekt Pixel – Die letzte Szene</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#07070f;--fg:#e8e4d8;--hi:#f4d35e;--red:#c0282c;--frame:#1b1b2b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);overflow:hidden;font-family:"VT323",monospace}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+  #tv{position:relative;width:min(100%, calc((100vh - 130px) * 16 / 9));aspect-ratio:16/9;background:#000;
+    border-radius:18px;overflow:hidden;box-shadow:0 0 0 10px var(--frame),0 0 0 12px #333,0 20px 60px #000;cursor:pointer}
+  canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+  #scan{position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(to bottom,rgba(0,0,0,.28) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
+  #glow{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at center,rgba(255,255,255,.05) 0%,transparent 55%,rgba(0,0,0,.6) 100%);animation:fl 4s infinite}
+  @keyframes fl{0%,100%{opacity:1}48%{opacity:.85}50%{opacity:1}}
+  /* Dialogbox im Stil alter Adventure-Games */
+  #box{position:absolute;left:3%;right:3%;bottom:4%;padding:1.2% 1.8%;background:#0a0a2a;opacity:0;transition:opacity .3s;
+    border:4px solid var(--fg);box-shadow:0 0 0 4px #0a0a2a, inset 0 0 0 3px #3a3a8a;font-size:clamp(13px,2.1vw,26px);line-height:1.1;image-rendering:pixelated}
+  #box.show{opacity:1}
+  #box h2{margin:0 0 .35em;font-family:"Press Start 2P",monospace;font-weight:400;font-size:.62em;color:var(--hi)}
+  #box p{margin:0}
+  #box .cur{display:inline-block;width:.5em;height:.9em;background:var(--hi);vertical-align:-.1em;animation:bl .5s steps(1) infinite}
+  @keyframes bl{50%{opacity:0}}
+  #bar{width:min(100%, calc((100vh - 130px) * 16 / 9));display:flex;align-items:center;gap:8px;font-family:"Press Start 2P",monospace;font-size:11px}
+  #bar button{background:#14142a;color:var(--fg);border:3px solid var(--fg);padding:6px 10px;font:inherit;cursor:pointer}
+  #bar button:hover{color:var(--hi);border-color:var(--hi)}
+  #ticks{flex:1;display:flex;gap:3px}
+  #ticks div{flex:1;height:10px;background:#1c1c34;cursor:pointer}
+  #ticks div span{display:block;height:100%;width:0;background:var(--red)}
+  #count{min-width:5em;text-align:right}
+  #note{font-size:17px;color:#8a8aa0;text-align:center;max-width:900px}
+  #note a{color:var(--hi)}
+  @media (max-width:600px){#bar{font-size:8px}#bar button{padding:4px 6px}#note{font-size:14px}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="tv" title="Klicken: Pause / Weiter">
+    <canvas id="c" width="320" height="180"></canvas>
+    <div id="box"><h2></h2><p></p></div>
+    <div id="scan"></div><div id="glow"></div>
+  </div>
+  <div id="bar">
+    <button id="prev" aria-label="Zurück">&lt;&lt;</button>
+    <button id="play" aria-label="Pause">II</button>
+    <button id="next" aria-label="Weiter">&gt;&gt;</button>
+    <div id="ticks"></div><span id="count"></span>
+  </div>
+  <div id="note">Die Schlussszene von „Fight Club“ (1999), frei in eigenen Worten nacherzählt – ohne Dialogzitate und ohne Songtext. Alle Pixelfiguren sind eigene Entwürfe. Leertaste = Pause, ← → = Szenen. · <a href="index.html">Zum Tintenfilm</a></div>
+</div>
+
+<script>
+const cv=document.getElementById('c'), X=cv.getContext('2d'); X.imageSmoothingEnabled=false;
+const W=320, H=180;
+function rng(seed){ return ()=>{ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const rect=(x,y,w,h,c)=>{ X.fillStyle=c; X.fillRect(Math.round(x),Math.round(y),w,h); };
+
+/* ---------- Palette (VGA-artig) ---------- */
+const P={ '.':null, H:'#3a2414', S:'#e8b894', D:'#b98563', k:'#141414', m:'#8a3a2a', W:'#ecebe4', P:'#303848', B:'#111111',
+  Y:'#e8d060', R:'#c0282c', r:'#7a1418', L:'#d02040', M:'#1a1010', C:'#262626', c:'#3c3c3c', G:'#8a8a96', g:'#55555f' };
+
+/* ---------- Sprites (eigene Figuren) ---------- */
+const NARR=[ // Erzähler: dunkle Haare, Unterhemd
+'...HHHH...','..HHHHHH..','..HSSSSH..','..SkSSkS..','..SSSSSS..','...SmmS...','....SS....',
+'.WWWWWWWW.','WWWWWWWWWW','SWWWWWWWWS','SWWWWWWWWS','SWWWWWWWWS','S.WWWWWW.S','..PPPPPP..','..PPPPPP..',
+'..PP..PP..','..PP..PP..','..PP..PP..','..PP..PP..','..PP..PP..','.BBB..BBB.'];
+const TYLER=[ // der andere: rote Jacke, blonde Stachelhaare
+'..Y.Y.Y...','.YYYYYYY..','..YSSSSY..','..SkSSkS..','..SSSSSS..','...SmmS...','....SS....',
+'.RRRWWRRR.','RRRRWWRRRR','RRrRWWRrRR','RRrRWWRrRR','SRrRRRRrRS','S.RRRRRR.S','..PPPPPP..','..PPPPPP..',
+'..PP..PP..','..PP..PP..','..PP..PP..','..PP..PP..','..PP..PP..','.BBB..BBB.'];
+const MARLA=[
+'..MMMMM...','.MMMMMMM..','MMSSSSSMM.','MMkSSkSMM.','MMSSSSSMM.','MM.SLLS.MM','M...SS...M',
+'.CCCCCCCC.','CCCCCCCCCC','SCCCCCCCCS','SCCCCCCCCS','SCCCCCCCCS','S.CCCCCC.S','..CCCCCC..','..CCCCCC..',
+'...S..S...','...S..S...','...S..S...','...S..S...','...S..S...','..BB..BB..'];
+const MONKEY=[ // kahlgeschorene Anhänger in Schwarz
+'...DDDD...','..DSSSSD..','..SSSSSS..','..SkSSkS..','..SSSSSS..','...SSSS...','....SS....',
+'.CCCCCCCC.','CCCCCCCCCC','SCCCCCCCCS','SCCCCCCCCS','SCCCCCCCCS','S.CCCCCC.S','..CCCCCC..','..CCCCCC..',
+'..CC..CC..','..CC..CC..','..CC..CC..','..CC..CC..','..CC..CC..','.BBB..BBB.'];
+const back=s=>s.map((row,i)=>i<5?row.replace(/[SkmL]/g,s===MARLA?'M':'H'):i===5?row.replace(/[kmL]/g,'S'):row);
+const NARR_B=back(NARR), MARLA_B=back(MARLA);
+const FACE=[
+'....HHHHHHHH....','..HHHHHHHHHHHH..','.HHHHHHHHHHHHHH.','.HHSSSSSSSSSSHH.','.HSSSSSSSSSSSSH.','.SkkkSSSSSSkkkS.',
+'.SSWWSSSSSSWWSS.','.SSWkSSSSSSWkSS.','.SSSSSSSSSSSSSS.','.SSSSSSDSSSSSSS.','.SSSSSSDDSSSSSS.','.SSSSSSSSSSSSSS.',
+'..SSSmmmmmmSSS..','..SSSSSSSSSSSS..','...SSSSSSSSSS...','....DSSSSSSD....','.....SSSSSS.....','...WWSSSSSSWW...'];
+
+function sprite(spr,x,y,s=1,opt={}){
+  const h=spr.length, w=spr[0].length;
+  for(let j=0;j<h;j++) for(let i=0;i<w;i++){
+    const c=P[spr[j][opt.flip?w-1-i:i]]; if(!c) continue;
+    let px=x+i*s, py=y+j*s;
+    if(opt.dis){ const d=opt.dis(i,j); if(d===null) continue; px+=d[0]; py+=d[1]; }
+    rect(px,py,s,s,c);
+  }
+}
+
+/* ---------- Kulissen ---------- */
+const BAYER=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+function dither(x0,y0,w,h,c1,c2,from=0,to=1){ // vertikaler Verlauf mit Ordered Dithering
+  for(let y=y0;y<y0+h;y++){ const f=from+(to-from)*(y-y0)/h;
+    for(let x=x0;x<x0+w;x++) rect(x,y,1,1,(BAYER[y&3][x&3]/16)<f?c2:c1); }
+}
+// Skyline mit festen Seeds
+function makeCity(seed,base,minH,maxH){
+  const R=rng(seed), b=[]; let x=-4;
+  while(x<W){ const w=12+Math.floor(R()*22), h=minH+Math.floor(R()*(maxH-minH)), win=[];
+    for(let yy=4;yy<h-4;yy+=5) for(let xx=3;xx<w-3;xx+=4) if(R()<.45) win.push([xx,yy,R()<.8?'#f4d35e':'#8a7a3a']);
+    b.push({x,w,h,win,col:R()<.5?'#15152c':'#1d1e3c',target:R()<.55,delay:R()*3}); x+=w+1+Math.floor(R()*3); }
+  return {b,base};
+}
+const cityFar=makeCity(7,130,30,70), cityNear=makeCity(99,130,40,105);
+let dust=[];
+function drawCity(city,t,boom){ // boom: Zeit seit Beginn der Sprengungen (oder -1)
+  for(const b of city.b){
+    let sink=0, lit=true;
+    if(boom>=0 && b.target){ const tb=boom-b.delay;
+      if(tb>0){ lit=tb<.3; sink=Math.min(b.h, tb*tb*14);
+        if(tb<1.2 && Math.random()<.9) for(let k=0;k<3;k++) dust.push({x:b.x+Math.random()*b.w,y:city.base-2,vx:(Math.random()-.5)*14,vy:-Math.random()*12,life:2+Math.random()*2,c:Math.random()<.4?'#f08a24':'#6a6070'});
+        if(tb<.4){ rect(b.x-3,city.base-12,b.w+6,12,Math.random()<.5?'#ffe070':'#f08a24'); } } }
+    const top=city.base-b.h+sink, hh=b.h-sink;
+    if(hh<=0) continue;
+    rect(b.x,top,b.w,hh,b.col);
+    if(lit) for(const w of b.win) if(w[1]+sink<b.h-2) rect(b.x+w[0],top+w[1],2,3,w[2]);
+  }
+}
+function drawDust(dt){
+  dust=dust.filter(d=>(d.life-=dt)>0);
+  for(const d of dust){ d.x+=d.vx*dt; d.y+=d.vy*dt; d.vy+=2*dt; const s=d.life>1.5?2:1; rect(d.x,d.y,s,s,d.c); }
+}
+function office(t,boom=-1,glow=0){
+  dither(0,0,W,132,'#0b0b1e','#2b1f4a',0,.9);
+  if(glow>0) { X.globalAlpha=Math.min(.6,glow); dither(0,60,W,72,'#2b1f4a','#f08a24',0,1); X.globalAlpha=1; }
+  drawCity(cityFar,t,boom); drawCity(cityNear,t,boom);
+  // Fensterrahmen
+  rect(0,0,W,6,'#101018'); for(let x=0;x<=W;x+=64) rect(x-2,0,4,134,'#101018'); rect(0,64,W,2,'#101018');
+  rect(0,130,W,6,'#23232f');
+  // Boden
+  for(let y=136;y<H;y++) rect(0,y,W,1,y%6<3?'#2a2a33':'#26262e');
+}
+
+/* ---------- Szenen ---------- */
+function bigText(txt,y,size,col,shadow='#000'){ X.font=`${size}px "Press Start 2P"`; X.textAlign='center';
+  X.fillStyle=shadow; X.fillText(txt,W/2+2,y+2); X.fillStyle=col; X.fillText(txt,W/2,y); }
+let lastT=0;
+const scenes=[
+{ dur:7, title:'', text:'', draw(t){ office(t); X.globalAlpha=.7; rect(0,0,W,H,'#000'); X.globalAlpha=1;
+   bigText('FIGHT CLUB',70,16,'#f4d35e'); bigText('DIE LETZTE SZENE',96,8,'#e8e4d8');
+   if((t*2|0)%2) bigText('- PRESS START -',140,8,'#c0282c'); } },
+
+{ dur:13, title:'Das oberste Stockwerk', text:'Nacht, ein leerer Büroturm. Draußen die Skyline – und in den Kellern der Nachbarhäuser ticken Sprengsätze. Tyler steht vor ihm und grinst. Doch die Waffe liegt in der Hand des Erzählers.',
+  draw(t){ office(t);
+   const talk=(t*6|0)%2;
+   sprite(NARR,100,94,2); rect(118,120,8,3,'#55555f'); rect(122,118,3,3,'#55555f'); // Pistole in der Hand
+   const flick = t>7 && Math.random()<.25; // Tyler flackert: es gibt ihn nur im Kopf
+   if(!flick) sprite(TYLER.map((r,i)=>i===5&&talk?r.replace('mm','kk'):r),190,94,2,{flip:true});
+   if(t>7 && (t*3|0)%2){ X.font='8px "Press Start 2P"'; X.fillStyle='#f4d35e'; X.textAlign='center'; X.fillText('?!',120,86); } } },
+
+{ dur:11, title:'Der einzige Ausweg', text:'Wenn Tyler nur in seinem Kopf existiert, gibt es nur einen Weg, ihn loszuwerden. Er hebt die Pistole an sein eigenes Gesicht …',
+  draw(t){ dither(0,0,W,H,'#0b0b1e','#3b2a5a',0,1);
+   const sh=t>4?Math.round(Math.sin(t*50)*1):0;
+   sprite(FACE,96+sh,8,8);
+   if(((t*1.5)|0)%2) rect(222,70+((t*20)%30),4,6,'#8ac8f0'); // Schweiß
+   const gy=Math.max(96,180-t*14);
+   rect(204+sh,gy,56,14,'#55555f'); rect(204+sh,gy,56,3,'#8a8a96'); rect(250+sh,gy+14,14,26,'#3c3c3c'); rect(244+sh,gy+22,26,40,P.S); rect(244+sh,gy+22,26,4,P.D);
+   if(t>8.2 && t<8.6){ rect(0,0,W,H,'#ffffff'); bigText('BANG!',100,24,'#c0282c','#ffffff'); }
+   if(t>=8.6){ X.globalAlpha=Math.min(.85,(t-8.6)); rect(0,0,W,H,'#000'); X.globalAlpha=1; } } },
+
+{ dur:12, title:'Tyler zerfällt', text:'Die Kugel geht durch seine Wange – er überlebt. Tyler dagegen steht noch einen Moment da … und löst sich dann einfach auf. Pixel für Pixel.',
+  draw(t){ office(t);
+   sprite(NARR,100,98,2); rect(110,108,3,3,'#8a1010'); // Wunde
+   if(t<5){ for(let i=0;i<4;i++) rect(110+Math.sin(t*2+i)*3,94-((t*8+i*6)%24),2,2,'#6a6a7a'); }
+   const R=rng(5), seeds=TYLER.map(r=>[...r].map(()=>[R()-.5,R(),R()]));
+   const k=Math.max(0,t-3);
+   sprite(TYLER,190,94,2,{flip:true,dis:(i,j)=>{ const s=seeds[j][i]; const tt=k-(s[2]*3+ (20-j)*.05);
+     if(tt<=0) return [0,0]; if(tt>4) return null; return [s[0]*tt*40, -s[1]*tt*tt*10]; }}); } },
+
+{ dur:12, title:'Marla', text:'Die Leute von Projekt Chaos kommen aus dem Aufzug – und bringen Marla mit. Als sie ihren blutenden Anführer sehen, ziehen sie sich zurück und lassen die beiden allein.',
+  draw(t){ office(t);
+   // Aufzug
+   rect(270,70,46,66,'#3c3c46'); const open=Math.min(22,t*10); rect(271+22-open,71,open*0?0:22-open,64,'#55555f'); rect(293,71,22-open,64,'#55555f'); rect(271,71,22-open,64,'#55555f');
+   rect(271+22-open,71,open*2,64,'#f4e6a0');
+   sprite(NARR,80,98,2);
+   const walk=x0=>Math.max(150,x0-t*22);
+   const back=t>7?(t-7)*30:0;
+   if(t>1){ const mx=walk(290); sprite(MARLA,mx,94,2,{flip:true}); }
+   for(let i=0;i<3;i++){ if(t<1.5+i*.4) continue; const x=Math.max(170+i*22,300-(t-1.5-i*.4)*22)+back; if(x<W) sprite(MONKEY,x,94,2,{flip:true}); } } },
+
+{ dur:11, title:'Hand in Hand', text:'Er nimmt Marlas Hand. Gemeinsam stehen sie vor der riesigen Glasfront und schauen hinaus auf die schlafende Stadt.',
+  draw(t){ office(t);
+   sprite(NARR_B,124,50,4); sprite(MARLA_B,170,50,4);
+   rect(162,90,12,4,P.S); } },
+
+{ dur:15, title:'Die Lichter gehen aus', text:'Dann beginnt es: Ein Hochhaus nach dem anderen sackt in sich zusammen – die Zentralen der Kreditkartenfirmen. Und dazu setzt dieser Gitarrensong der Pixies ein.',
+  draw(t,dt){ const boom=Math.max(-1,t-1.5); office(t,boom,boom>0?boom/4:0); drawDust(dt);
+   sprite(NARR_B,124,50,4); sprite(MARLA_B,170,50,4); rect(162,90,12,4,P.S);
+   if(t>3){ X.font='8px "Press Start 2P"'; X.fillStyle='#f4d35e'; X.textAlign='left';
+     for(let i=0;i<3;i++) X.fillText(i%2?'♪':'♫',20+i*18+Math.sin(t*3+i)*3,40+Math.sin(t*2+i)*6); } } },
+
+{ dur:5, title:'…', text:'Und für den Bruchteil einer Sekunde flackert ein Einzelbild auf, das da eigentlich nicht hingehört.',
+  draw(t){ const img=X.createImageData(W,H); for(let i=0;i<img.data.length;i+=4){ const v=Math.random()*255|0; img.data[i]=img.data[i+1]=img.data[i+2]=v; img.data[i+3]=255; }
+   X.putImageData(img,0,0); const y=(t*90)%H; rect(0,y,W,14,'rgba(255,255,255,.25)');
+   if(t>2 && t<2.08) rect(0,0,W,H,'#c0282c'); } },
+
+{ dur:8, title:'', text:'', draw(t){ office(t,20,.6); X.globalAlpha=.75; rect(0,0,W,H,'#000'); X.globalAlpha=1;
+   bigText('ENDE',80,24,'#c0282c'); bigText('INSERT COIN',120,8,(t*2|0)%2?'#f4d35e':'#555'); } },
+];
+
+/* ---------- Player ---------- */
+const box=document.getElementById('box'), bH=box.querySelector('h2'), bP=box.querySelector('p'),
+  ticks=document.getElementById('ticks'), count=document.getElementById('count'), playBtn=document.getElementById('play');
+let idx=0, playing=true, el=0, last=performance.now(), typer=null;
+scenes.forEach((s,i)=>{ const d=document.createElement('div'); d.innerHTML='<span></span>'; d.title=s.title||(i?'Ende':'Titel'); d.onclick=()=>go(i); ticks.appendChild(d); });
+function typeText(t){ clearInterval(typer); let i=0;
+  typer=setInterval(()=>{ i++; bP.innerHTML=t.slice(0,i)+'<span class="cur"></span>'; if(i>=t.length){ clearInterval(typer); bP.textContent=t; } },30); }
+function go(i){ idx=(i+scenes.length)%scenes.length; el=0; dust=[]; const s=scenes[idx];
+  box.classList.remove('show'); clearInterval(typer); bP.textContent='';
+  if(s.text){ bH.textContent=s.title; setTimeout(()=>{ box.classList.add('show'); typeText(s.text); },500); }
+  count.textContent=(idx+1)+'/'+scenes.length; }
+function setPlaying(p){ playing=p; playBtn.textContent=p?'II':'>'; playBtn.setAttribute('aria-label',p?'Pause':'Abspielen'); }
+function loop(now){
+  const dt=Math.min(.1,(now-last)/1000); last=now;
+  if(playing){ el+=dt; if(el>=scenes[idx].dur) go(idx+1); }
+  X.clearRect(0,0,W,H); scenes[idx].draw(el, playing?dt:0);
+  if(el<.25){ X.globalAlpha=1-el*4; rect(0,0,W,H,'#000'); X.globalAlpha=1; } // Szenenwechsel
+  [...ticks.children].forEach((d,i)=>d.firstChild.style.width=(i<idx?100:i>idx?0:Math.min(100,el/scenes[idx].dur*100))+'%');
+  requestAnimationFrame(loop);
+}
+document.getElementById('tv').onclick=()=>setPlaying(!playing);
+playBtn.onclick=()=>setPlaying(!playing);
+document.getElementById('next').onclick=()=>go(idx+1);
+document.getElementById('prev').onclick=()=>go(idx-1);
+document.addEventListener('keydown',e=>{ if(e.key===' '){e.preventDefault();setPlaying(!playing);} if(e.key==='ArrowRight')go(idx+1); if(e.key==='ArrowLeft')go(idx-1); });
+(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>{ go(0); requestAnimationFrame(loop); });
+</script>
+</body>
+</html>
