@@ -6,4 +6,4 @@ Einfach `index.html` im Browser öffnen. Steuerung: Leertaste (Pause), ← / →
 
 ## Projekt Pixel – Fight Club, die letzte Szene
 
-`fightclub.html`: die Schlussszene von *Fight Club* (1999) als Pixel-Animation im Stil der 90er (320×180-Canvas, Dithering, CRT-Scanlines, Adventure-Dialogbox). Frei in eigenen Worten nacherzählt, ohne Dialogzitate oder Songtext; alle Figuren sind eigene Entwürfe.
+`fightclub.html`: die Schlussszene von *Fight Club* (1999) als stummer Pixel-Film im Stil der Point-and-Click-Adventures der 90er: schiefe Cartoon-Perspektiven, übertriebene Figuren mit Konturen, satte Farben. Gezeichnet wird weich auf einer 320×180-Leinwand und dann auf eine feste VGA-Palette mit Dithering reduziert. Kein Text, keine Dialoge, keine Songtexte; alle Figuren sind eigene Entwürfe.
