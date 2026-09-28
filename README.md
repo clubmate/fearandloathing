@@ -21,6 +21,6 @@ ffmpeg -framerate 12 -i clay/renders/fightclub/%04d.png -vf "nlmeans=s=4:p=5:r=9
 
 ## Berliner Fenster – Pixel-Loop
 
-`berlin/fenster.gif`: Blick nachts aus einem Berliner Altbaufenster. Der Fernsehturm blinkt, eine S-Bahn fährt über das Backsteinviadukt, in der Platte gehen Lichter an und aus, ein Fernseher flackert, ein Flugzeug zieht vorbei, und auf der Fensterbank brennt eine Kerze. 128×96 Pixel, 5-fach vergrößert, 120 Bilder, nahtlose Schleife (12 s).
+`berlin/fenster.gif`: Blick nachts aus einem Berliner Altbaufenster: Fernsehturm mit Warnlichtern und rotierendem Fensterring, Plattenbau mit Treppenhauslicht und flackernden Fernsehern, Altbauten mit Stuck und Balkonen, Baukran, eine S-Bahn mit Fahrgästen auf dem Backsteinviadukt, in den Bögen ein Späti mit Neonschild und eine Bar, Gaslaternen, ein Taxi, Wolkenschleier, ein Flugzeug im Anflug. Drinnen: Vorhänge, Kerze mit Flackerlicht und Spiegelung in der Scheibe, dampfende Tasse, Efeutute, Heizkörper. 512×384 Pixel, 2-fach vergrößert, 150 Bilder à 80 ms, nahtlose Schleife (12 s).
 
-Neu erzeugen: `pip install pillow && python3 berlin/fenster.py`
+Neu erzeugen: `pip install pillow numpy && python3 berlin/fenster.py`
