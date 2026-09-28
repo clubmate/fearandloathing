@@ -24,3 +24,9 @@ ffmpeg -framerate 12 -i clay/renders/fightclub/%04d.png -vf "nlmeans=s=4:p=5:r=9
 `berlin/fenster.gif`: Blick nachts aus einem Berliner Altbaufenster: Fernsehturm mit Warnlichtern und rotierendem Fensterring, Plattenbau mit Treppenhauslicht und flackernden Fernsehern, Altbauten mit Stuck und Balkonen, Baukran, eine S-Bahn mit Fahrgästen auf dem Backsteinviadukt, in den Bögen ein Späti mit Neonschild und eine Bar, Gaslaternen, ein Taxi, Wolkenschleier, ein Flugzeug im Anflug. Drinnen: Vorhänge, Kerze mit Flackerlicht und Spiegelung in der Scheibe, dampfende Tasse, Efeutute, Heizkörper. Gezeichnet im Stil eines Pixel-Computerspiels: feste 32-Farben-Palette ([Endesga 32](https://lospec.com/palette-list/endesga-32)), dunkle Konturen, harte Farbstufen, Kerzenlicht als Palettentausch. 512×384 Pixel, 2-fach vergrößert, 150 Bilder à 80 ms, nahtlose Schleife (12 s).
 
 Neu erzeugen: `pip install pillow numpy && python3 berlin/fenster.py`
+
+## Finale – Fight Club als Pixel-Spiel
+
+`finale/finale.gif`: die Schlussszene von *Fight Club* im gleichen Computerspiel-Look wie das Berliner Fenster (Endesga-32-Palette, Konturen, harte Lichtstufen). Der Erzähler und Marla stehen von hinten, Hand in Hand, vor der Glasfront eines dunklen Büros; draußen zünden die Sprengladungen Stockwerk für Stockwerk, die Hochhäuser sacken in Staubwolken zusammen, die Blitze erhellen den Raum. Irisblende auf und zu, dann beginnt es von vorn. Kein Text, keine Dialoge; die Figuren sind die eigenen Entwürfe aus `fightclub.html`. 512×384 Pixel, 2-fach vergrößert, 200 Bilder à 80 ms (16 s).
+
+Neu erzeugen: `pip install pillow numpy && python3 finale/finale.py`
