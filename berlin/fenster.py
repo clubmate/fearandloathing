@@ -1,5 +1,6 @@
 """Berliner Nacht aus dem Fenster – ein Pixel-Loop.
 
+Im Look eines Pixel-Spiels: Endesga-32-Palette, Konturen, harte Farbstufen.
 Erzeugt berlin/fenster.gif (512x384 Pixel, 2x vergrößert, 150 Bilder à 80 ms, nahtlose Schleife)
 und berlin/fenster.png (Standbild). Alles ist deterministisch: Jede Bewegung hat eine Periode,
 die in 150 Bilder aufgeht.
@@ -30,9 +31,28 @@ def C(h):
     return np.array([int(h[i:i + 2], 16) for i in (1, 3, 5)], dtype=np.float32)
 
 
+CHECK = ((YY + XX) % 2).astype(np.float32)
+
+
 def dq(m, levels):
-    """Maske geordnet gedithert auf wenige Stufen bringen – hält den Pixel-Look."""
-    return np.clip(np.floor(m * levels + BAY[:m.shape[0], :m.shape[1]]) / levels, 0, 1)
+    """Harte Farbstufen wie im Spiel, am Übergang ein Schachbrettmuster."""
+    v = m * levels
+    base = np.floor(v)
+    frac = v - base
+    ck = CHECK[:m.shape[0], :m.shape[1]]
+    return np.clip((base + ((frac > 0.7) | ((frac > 0.4) & (ck > 0)))) / levels, 0, 1)
+
+
+def outline(rgb, a, color, inner=False):
+    """1-Pixel-Kontur um alles, was in a gezeichnet ist."""
+    n = np.zeros_like(a)
+    n[1:] |= a[:-1]
+    n[:-1] |= a[1:]
+    n[:, 1:] |= a[:, :-1]
+    n[:, :-1] |= a[:, 1:]
+    edge = (n & ~a) if not inner else (a & ~(np.roll(a, 1, 0) & np.roll(a, -1, 0) & np.roll(a, 1, 1) & np.roll(a, -1, 1)))
+    rgb[edge] = color
+    a |= edge
 
 
 def posterize(rgb, step=8):
@@ -41,6 +61,39 @@ def posterize(rgb, step=8):
 
 def blink(f, period, on, phase=0):
     return (f + phase) % period < on
+
+
+# Endesga 32 (lospec.com/palette-list/endesga-32)
+PALETTE = [tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) for h in """
+be4a2f d77643 ead4aa e4a672 b86f50 733e39 3e2731 a22633 e43b44 f77622 feae34 fee761 63c74d 3e8948
+265c42 193c3e 124e89 0099db 2ce8f5 ffffff c0cbdc 8b9bb4 5a6988 3a4466 262b44 181425 ff0044 68386c
+b55088 f6757a e8b796 c28569""".split()]
+PAL_NP = np.array(PALETTE, np.float32)
+
+
+def to_index(fr):
+    """Jedes Pixel auf die nächste Palettenfarbe (gewichtet nach Helligkeitsempfinden)."""
+    wts = np.array([0.30, 0.59, 0.11], np.float32) ** 0.5
+    flat = fr.reshape(-1, 3) * wts
+    d = ((flat[:, None, :] - PAL_NP[None] * wts) ** 2).sum(-1)
+    return d.argmin(1).reshape(fr.shape[:2])
+
+
+def to_palette(fr):
+    return PAL_NP[to_index(fr)]
+
+
+# Kerzenlicht als Palettentausch: jede Farbe hat eine wärmere, hellere Nachbarin
+_WARM = """181425:3e2731 262b44:3e2731 3e2731:733e39 3a4466:733e39 68386c:733e39 5a6988:b86f50
+733e39:b86f50 8b9bb4:c28569 b86f50:c28569 c28569:e4a672 e4a672:ead4aa 193c3e:265c42 265c42:3e8948
+3e8948:63c74d 124e89:5a6988 be4a2f:d77643 a22633:be4a2f c0cbdc:e8b796 e8b796:ead4aa""".split()
+_HEX = ["%02x%02x%02x" % c for c in PALETTE]
+WARM_STEP = np.arange(len(PALETTE))
+for pair in _WARM:
+    src, dst = pair.split(":")
+    WARM_STEP[_HEX.index(src)] = _HEX.index(dst)
+
+
 
 
 class Layer:
@@ -86,7 +139,9 @@ ys = np.array([s[0] for s in stops], float)
 for ch in range(3):
     vals = np.array([C(s[1])[ch] for s in stops])
     sky.rgb[..., ch] = np.interp(YY, ys, vals)
-sky.rgb = posterize(sky.rgb, 5)
+bands = [C("#181425"), C("#262b44"), C("#3a4466"), C("#68386c"), C("#b55088")]
+tq = dq(np.interp(YY, [70, 125, 170, 200, 228], [0, 1, 2, 3, 4]) / 4, len(bands) - 1)
+sky.rgb = np.stack([bands[i] for i in range(len(bands))])[np.round(tq * (len(bands) - 1)).astype(int)]
 
 # Mond (Sichel) mit Hof
 MX, MY, MR = 404, 58, 15
@@ -530,6 +585,7 @@ city.rgb += (dq(sg, 5) * (YY >= STREET))[..., None] * C("#d8a060")[None, None]
 bgl = np.clip(1 - np.hypot(XX - BCX, (YY - (STREET + 4)) * 2.5) / 34, 0, 1) ** 1.5 * 0.4
 city.rgb += (dq(bgl, 5) * (YY >= STREET))[..., None] * C("#6a4ac0")[None, None]
 city.rgb = np.clip(city.rgb, 0, 255)
+outline(city.rgb, city.a, C("#181425"))
 
 # Geländer oben auf dem Viadukt (vor dem Zug)
 rail = Layer()
@@ -593,16 +649,20 @@ def build_train():
 
 
 train_rgb, train_a, TL = build_train()
+train_rgb = np.pad(train_rgb, ((1, 1), (1, 1), (0, 0)))
+train_a = np.pad(train_a, 1)
+outline(train_rgb, train_a, C("#181425"))
+TL += 2
 
 
 def draw_train(fr, f):
     x = int(W + 30 - (W + TL + 90) * f / N)
-    y = DECK - 30
+    y = DECK - 31
     x0, x1 = max(0, x), min(W, x + TL)
     if x0 >= x1:
         return
     sub = train_a[:, x0 - x:x1 - x]
-    fr[y:y + 30, x0:x1][sub] = train_rgb[:, x0 - x:x1 - x][sub]
+    fr[y:y + 32, x0:x1][sub] = train_rgb[:, x0 - x:x1 - x][sub]
     beam = np.clip(1 - np.hypot((XX - x) / 60, (YY - (y + 22)) / 5), 0, 1) * (XX < x) * (YY < DECK + 4)
     fr += dq(beam * 0.5, 5)[..., None] * C("#fff0c0")[None, None]
     fr[DECK:DECK + 3, x0:x1] += C("#403018")               # Fensterlicht auf dem Gesims
@@ -641,11 +701,15 @@ def build_car():
 
 
 car_rgb, car_a, CW, CH = build_car()
+car_rgb = np.pad(car_rgb, ((1, 1), (1, 1), (0, 0)))
+car_a = np.pad(car_a, 1)
+outline(car_rgb, car_a, C("#181425"))
+CW, CH = CW + 2, CH + 2
 
 
 def draw_car(fr, f):
     x = int(-70 + (W + 140) * ((f + N // 2) % N) / N)
-    y = STREET + 7
+    y = STREET + 6
     x0, x1 = max(0, x), min(W, x + CW)
     if x0 < x1:
         sub = car_a[:, x0 - x:x1 - x]
@@ -749,7 +813,7 @@ for x0, x1 in ((0, 30), (481, 511)):
     xs = XX[:, x0:x1 + 1]
     fold = 0.55 + 0.45 * np.sin(xs * 2 * np.pi / 9 + (0 if x0 == 0 else 1.5))
     lvl = np.clip(np.floor(fold * 4 + BAY[:, x0:x1 + 1]) / 4, 0, 1)
-    cur = C("#2c0f1c")[None, None] + lvl[..., None] * (C("#5a2032") - C("#2c0f1c"))[None, None]
+    cur = C("#3e2731")[None, None] + lvl[..., None] * (C("#68386c") - C("#3e2731"))[None, None]
     room.rgb[6:, x0:x1 + 1] = cur[6:]
     for x in range(x0 + 2, x1, 7):
         room.rect(x, 3, x + 2, 7, C("#6a6070"))
@@ -772,6 +836,9 @@ for x in range(140, 372, 8):
 room.rect(138, 352, 371, 354, C("#2e2a36"))
 room.rect(124, 358, 139, 361, C("#2e2a36"))
 room.rect(126, 352, 131, 357, C("#44404e"))
+
+# Requisiten auf eigener Ebene (bekommen eine Kontur)
+walls, room = room, Layer()
 
 # Topfpflanze (Efeutute), rankt über die Fensterbank
 PX, PY = 114, 316
@@ -865,15 +932,22 @@ room.rect(CX - 11, 314, CX + 11, 314, C("#b0a080"))
 room.rect(CX, CTOP - 6, CX, CTOP - 1, C("#2a1e18"))
 FLAME_X, FLAME_Y = CX, CTOP - 13
 
+outline(room.rgb, room.a, C("#181425"))
+walls.rgb[room.a] = room.rgb[room.a]
+walls.a |= room.a
+room = walls
+
 # flackernde Lichtstufen der Kerze vorab berechnen
 room_lit = []
-LEVELS = [(160, 0.5), (172, 0.56), (150, 0.45), (180, 0.6)]
+LEVELS = [(130, 0.9), (138, 0.95), (122, 0.85), (146, 1.0)]
 dist = np.hypot(XX - FLAME_X, (YY - FLAME_Y) * 1.05)
+room_idx = to_index(room.rgb)
 for R_, I_ in LEVELS:
-    g = dq(np.clip(1 - dist / R_, 0, 1) ** 1.7 * I_, 12)
-    lay = room.rgb * (1 + g[..., None] * 0.9) + g[..., None] * C("#ff9a4c")[None, None] * 0.5
-    room_lit.append(np.clip(lay, 0, 255))
-refl_glow = [dq(np.clip(1 - dist / (R_ * 0.7), 0, 1) ** 2 * I_ * 0.07, 4) * glass for R_, I_ in LEVELS]
+    steps = np.round(dq(np.clip(1 - dist / R_, 0, 1) ** 1.2 * I_, 2) * 2).astype(int)
+    idx = room_idx.copy()
+    for k in (1, 2):
+        idx[steps >= k] = WARM_STEP[idx[steps >= k]]
+    room_lit.append(PAL_NP[idx])
 
 rf = random.Random(3)
 flick = []
@@ -887,7 +961,6 @@ for f in range(N):
 def draw_room(fr, f):
     k = flick[f]
     # Spiegelung im Glas: warmer Schimmer und die Flamme als Echo
-    fr += refl_glow[k][..., None] * C("#ff9a4c")[None, None]
     rx, ry = FLAME_X + 21, FLAME_Y - 2
     fr[ry - 3:ry + 4, rx] = np.maximum(fr[ry - 3:ry + 4, rx], C("#8a5a30"))
     fr[ry - 1:ry + 2, rx] = np.maximum(fr[ry - 1:ry + 2, rx], C("#c08a4a"))
@@ -925,15 +998,13 @@ def frame(f):
     over(fr, rail)
     draw_car(fr, f)
     draw_room(fr, f)
-    return Image.fromarray(np.clip(fr, 0, 255).astype(np.uint8))
+    return Image.fromarray(to_palette(np.clip(fr, 0, 255)).astype(np.uint8))
 
 
 def render():
     frames = [frame(f) for f in range(N)]
-    sample = Image.new("RGB", (W, H * 10))
-    for i, k in enumerate(range(0, N, N // 10)):
-        sample.paste(frames[k], (0, H * i))
-    pal = sample.quantize(colors=255, method=Image.Quantize.MEDIANCUT, kmeans=2)
+    pal = Image.new("P", (1, 1))
+    pal.putpalette([v for c in PALETTE for v in c] + [0] * (768 - 3 * len(PALETTE)))
     q = [fr.quantize(palette=pal, dither=Image.Dither.NONE) for fr in frames]
     big = [im.resize((W * SCALE, H * SCALE), Image.NEAREST) for im in q]
     out = HERE / "fenster.gif"

@@ -21,6 +21,6 @@ ffmpeg -framerate 12 -i clay/renders/fightclub/%04d.png -vf "nlmeans=s=4:p=5:r=9
 
 ## Berliner Fenster – Pixel-Loop
 
-`berlin/fenster.gif`: Blick nachts aus einem Berliner Altbaufenster: Fernsehturm mit Warnlichtern und rotierendem Fensterring, Plattenbau mit Treppenhauslicht und flackernden Fernsehern, Altbauten mit Stuck und Balkonen, Baukran, eine S-Bahn mit Fahrgästen auf dem Backsteinviadukt, in den Bögen ein Späti mit Neonschild und eine Bar, Gaslaternen, ein Taxi, Wolkenschleier, ein Flugzeug im Anflug. Drinnen: Vorhänge, Kerze mit Flackerlicht und Spiegelung in der Scheibe, dampfende Tasse, Efeutute, Heizkörper. 512×384 Pixel, 2-fach vergrößert, 150 Bilder à 80 ms, nahtlose Schleife (12 s).
+`berlin/fenster.gif`: Blick nachts aus einem Berliner Altbaufenster: Fernsehturm mit Warnlichtern und rotierendem Fensterring, Plattenbau mit Treppenhauslicht und flackernden Fernsehern, Altbauten mit Stuck und Balkonen, Baukran, eine S-Bahn mit Fahrgästen auf dem Backsteinviadukt, in den Bögen ein Späti mit Neonschild und eine Bar, Gaslaternen, ein Taxi, Wolkenschleier, ein Flugzeug im Anflug. Drinnen: Vorhänge, Kerze mit Flackerlicht und Spiegelung in der Scheibe, dampfende Tasse, Efeutute, Heizkörper. Gezeichnet im Stil eines Pixel-Computerspiels: feste 32-Farben-Palette ([Endesga 32](https://lospec.com/palette-list/endesga-32)), dunkle Konturen, harte Farbstufen, Kerzenlicht als Palettentausch. 512×384 Pixel, 2-fach vergrößert, 150 Bilder à 80 ms, nahtlose Schleife (12 s).
 
 Neu erzeugen: `pip install pillow numpy && python3 berlin/fenster.py`
