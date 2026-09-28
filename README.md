@@ -18,3 +18,9 @@ Neu rendern (Blender 4.x, ffmpeg):
 CLAYDBG=clay/lib/render_loop.py blender -b -P clay/scenes/fightclub_clay.py -- --res 640 360 --samples 20 --out clay/renders/fightclub
 ffmpeg -framerate 12 -i clay/renders/fightclub/%04d.png -vf "nlmeans=s=4:p=5:r=9,scale=1280:720:flags=lanczos,noise=alls=3:allf=t,vignette=angle=PI/6,fps=24,format=yuv420p" -c:v libx264 -crf 20 clay/out/fightclub_clay.mp4
 ```
+
+## Berliner Fenster – Pixel-Loop
+
+`berlin/fenster.gif`: Blick nachts aus einem Berliner Altbaufenster. Der Fernsehturm blinkt, eine S-Bahn fährt über das Backsteinviadukt, in der Platte gehen Lichter an und aus, ein Fernseher flackert, ein Flugzeug zieht vorbei, und auf der Fensterbank brennt eine Kerze. 128×96 Pixel, 5-fach vergrößert, 120 Bilder, nahtlose Schleife (12 s).
+
+Neu erzeugen: `pip install pillow && python3 berlin/fenster.py`
